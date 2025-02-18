@@ -7,7 +7,7 @@ export async function POST(req: Request) {
     const audioBlob = formData.get('audio') as Blob | null;
     const audioWAV = await processAudio(audioBlob);
     const transcript = await generateSTT(audioWAV)
-    const geminiResponse = await fetchGeminiResponse(transcript);
+    const geminiResponse = await GeminiResponse(transcript);
     const ttsAudio = await generateTTS(geminiResponse);
     console.log(req);
 
