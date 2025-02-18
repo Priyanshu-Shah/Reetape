@@ -60,7 +60,6 @@ async function generateTTS(text: string): Promise<{ filename: string }> {
         });
 
         const filename = `tts-${uuidv4()}.mp3`;
-        // const filePath = `public/audio/${filename}`;
         
         const dir = path.join(process.cwd(), 'public/audio');
         await mkdir(dir, { recursive: true }); // Ensure the directory exists

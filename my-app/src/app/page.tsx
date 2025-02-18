@@ -9,7 +9,7 @@ export default function HomePage() {
   useEffect(() => {
     const init = async () => {
       const { peerConnection: pc } = await initializeVoiceStream();
-      peerConnection.current = pc;  // ✅ Now `peerConnection.current` is valid
+      peerConnection.current = pc;
     };
     init();
   }, []);
@@ -17,7 +17,7 @@ export default function HomePage() {
   const handleAudioData = async (blob: Blob) => {
     try {
       const formData = new FormData();
-      formData.append('audio', blob, 'recording.wav'); // ✅ Wrap Blob inside FormData
+      formData.append('audio', blob, 'recording.wav');
   
       const response = await fetch('/api/chat/route', {
         method: 'POST',
@@ -42,11 +42,17 @@ export default function HomePage() {
   
 
   return (
-    <main>
-      <div className="w-full h-screen bg-zinc-900 text-white p-10">
-        <h3>Reetape AI Customer Support</h3>
-        <br />
-        <MicButton StartRecording={handleAudioData} />
+    <main className="flex items-center justify-center h-screen bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-700 text-white p-10">
+      <div className="w-full max-w-md bg-white/10 backdrop-blur-md p-8 rounded-xl shadow-lg border border-white/20 text-center">
+        <h1 className="text-3xl font-bold tracking-wide text-white">
+          Reetape AI Customer Support
+        </h1>
+        <p className="text-gray-300 mt-2">
+          Speak to get instant AI-powered assistance.
+        </p>
+        <div className="mt-6">
+          <MicButton StartRecording={handleAudioData} />
+        </div>
       </div>
     </main>
   );
