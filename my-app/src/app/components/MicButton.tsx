@@ -2,7 +2,11 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 
-export default function MicButton() {
+interface MicButtonProps {
+  StartRecording?: (blob: Blob) => void; // ✅ Make it optional for flexibility
+}
+
+export default function MicButton({ StartRecording }: MicButtonProps){
   const [isRecording, setIsRecording] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -45,12 +49,21 @@ export default function MicButton() {
       mediaRecorderRef.current.stop();
       mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
       setIsRecording(false);
-      clearTimeout(silenceDetectionTimeout.current!);
-      
+  
+      if (silenceDetectionTimeout.current) {
+        clearTimeout(silenceDetectionTimeout.current);
+        silenceDetectionTimeout.current = null;
+      }
+  
       const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
       await processAudio(audioBlob);
+
+      if (StartRecording) {
+        StartRecording(audioBlob);  // ✅ Send the recorded audio to the parent
+      }
     }
   };
+  
 
   const startSilenceDetection = () => {
     const checkAudioLevel = () => {
@@ -81,25 +94,19 @@ export default function MicButton() {
 
   const processAudio = async (audioBlob: Blob) => {
     try {
-      // Send audio to backend
       const formData = new FormData();
       formData.append('audio', audioBlob, 'recording.wav');
-
+  
       const response = await fetch('/api/chat/gemini', {
         method: 'POST',
         body: formData
       });
-
-      const { audio: ttsAudio} = await response.json();
-      console.log(ttsAudio);
+  
+      const { audio: ttsAudio } = await response.json();
       
-      // Play response audio
-      const audioBuffer = await audioBlob.arrayBuffer();
-      const audioContext = new AudioContext();
-      const source = audioContext.createBufferSource();
-      source.buffer = await audioContext.decodeAudioData(audioBuffer);
-      source.connect(audioContext.destination);
-      source.start(0);
+      // ✅ Play the TTS response audio
+      const audio = new Audio(ttsAudio);
+      audio.play();
     } catch (error) {
       console.error('Audio processing error:', error);
     }
