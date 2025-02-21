@@ -1,28 +1,26 @@
 'use client';
+import { useState } from 'react';
 import MicButton from '@/app/components/MicButton';
-import { initializeVoiceStream } from '@/app/audio/webrtc';
-import { useEffect, useRef } from 'react';
 
 export default function HomePage() {
-  const peerConnection = useRef<RTCPeerConnection | null>(null);
-
-  useEffect(() => {
-    const init = async () => {
-      const { peerConnection: pc } = await initializeVoiceStream();
-      peerConnection.current = pc;
-    };
-    init();
-  }, []);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleAudioData = async (blob: Blob) => {
+    setIsProcessing(true);
+    setError(null);
     try {
       const formData = new FormData();
       formData.append('audio', blob, 'recording.wav');
-  
+
+      console.log('form created: ', blob);
+      
       const response = await fetch('/api/chat/route', {
         method: 'POST',
         body: formData
       });
+
+      console.log(response);
   
       if (!response.ok) {
         throw new Error('Failed to fetch response from server');
@@ -33,13 +31,16 @@ export default function HomePage() {
       if (audio) {
         new Audio(audio).play();
       } else {
-        console.error('No audio URL received');
+        throw new Error('No audio URL received');
       }
+
     } catch (error) {
       console.error('Error in handleAudioData:', error);
+      setError('An error occurred. Please try again.');
+    } finally {
+      setIsProcessing(false);
     }
   };
-  
 
   return (
     <main className="flex items-center justify-center h-screen bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-700 text-white p-10">
@@ -51,8 +52,10 @@ export default function HomePage() {
           Speak to get instant AI-powered assistance.
         </p>
         <div className="mt-6">
-          <MicButton StartRecording={handleAudioData} />
+          <MicButton onRecordingComplete={handleAudioData} />
         </div>
+        {isProcessing && <p className="mt-4 text-blue-300">Processing your request...</p>}
+        {error && <p className="mt-4 text-red-400">{error}</p>}
       </div>
     </main>
   );

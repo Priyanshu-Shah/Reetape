@@ -3,10 +3,10 @@
 import { useEffect, useRef, useState } from 'react';
 
 interface MicButtonProps {
-  StartRecording?: (blob: Blob) => void; // ✅ Make it optional for flexibility
+  onRecordingComplete: (blob: Blob) => void;
 }
 
-export default function MicButton({ StartRecording }: MicButtonProps){
+export default function MicButton({ onRecordingComplete }: MicButtonProps) {
   const [isRecording, setIsRecording] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -14,7 +14,6 @@ export default function MicButton({ StartRecording }: MicButtonProps){
   const analyserRef = useRef<AnalyserNode | null>(null);
   const silenceDetectionTimeout = useRef<NodeJS.Timeout | null>(null);
 
-  // Initialize audio context and analyzer
   useEffect(() => {
     audioContextRef.current = new AudioContext();
     analyserRef.current = audioContextRef.current.createAnalyser();
@@ -28,7 +27,6 @@ export default function MicButton({ StartRecording }: MicButtonProps){
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
-      // Setup audio processing chain
       const source = audioContextRef.current!.createMediaStreamSource(stream);
       source.connect(analyserRef.current!);
       
@@ -36,11 +34,12 @@ export default function MicButton({ StartRecording }: MicButtonProps){
         audioChunksRef.current.push(event.data);
       };
 
-      mediaRecorder.start(500); // Collect data every 500ms
+      mediaRecorder.start(500);
       setIsRecording(true);
       startSilenceDetection();
     } catch (err) {
       console.error('Error accessing microphone:', err);
+      alert('Failed to access microphone. Please check your permissions.');
     }
   };
 
@@ -56,18 +55,13 @@ export default function MicButton({ StartRecording }: MicButtonProps){
       }
   
       const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
-      await processAudio(audioBlob);
-
-      if (StartRecording) {
-        StartRecording(audioBlob);  // ✅ Send the recorded audio to the parent
-      }
+      onRecordingComplete(audioBlob);
     }
   };
-  
 
   const startSilenceDetection = () => {
     const checkAudioLevel = () => {
-      if (!analyserRef.current) return;
+      if (!analyserRef.current || !isRecording) return;
 
       const buffer = new Uint8Array(analyserRef.current.fftSize);
       analyserRef.current.getByteTimeDomainData(buffer);
@@ -75,11 +69,11 @@ export default function MicButton({ StartRecording }: MicButtonProps){
       const sum = buffer.reduce((acc, val) => acc + Math.abs(val - 128), 0);
       const avg = sum / buffer.length;
 
-      if (avg < 5) { // Silence threshold
+      if (avg < 5) {
         if (!silenceDetectionTimeout.current) {
           silenceDetectionTimeout.current = setTimeout(() => {
             stopRecording();
-          }, 1500); // 1.5 seconds of silence
+          }, 1500);
         }
       } else {
         clearTimeout(silenceDetectionTimeout.current!);
@@ -90,26 +84,6 @@ export default function MicButton({ StartRecording }: MicButtonProps){
     };
     
     checkAudioLevel();
-  };
-
-  const processAudio = async (audioBlob: Blob) => {
-    try {
-      const formData = new FormData();
-      formData.append('audio', audioBlob, 'recording.wav');
-  
-      const response = await fetch('/api/chat/gemini', {
-        method: 'POST',
-        body: formData
-      });
-  
-      const { audio: ttsAudio } = await response.json();
-      
-      // ✅ Play the TTS response audio
-      const audio = new Audio(ttsAudio);
-      audio.play();
-    } catch (error) {
-      console.error('Audio processing error:', error);
-    }
   };
 
   return (
