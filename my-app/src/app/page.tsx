@@ -15,7 +15,7 @@ export default function HomePage() {
 
       console.log('form created: ', blob);
       
-      const response = await fetch('/api/chat/route', {
+      const response = await fetch('/api/chat', {
         method: 'POST',
         body: formData
       });

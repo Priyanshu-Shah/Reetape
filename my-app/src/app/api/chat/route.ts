@@ -9,13 +9,10 @@ import { mkdir, writeFile } from 'fs/promises';
 import path from 'path';
 
 // Configure Google Cloud clients
-const speechClient = new SpeechClient({
-    keyFilename: process.env.GOOGLE_APPLICATION_CREDENTIALS
-});
+const credentials = JSON.parse(process.env.NEXT_PUBLIC_GOOGLE_APPLICATION_CREDENTIALS_JSON!);
 
-const ttsClient = new TextToSpeechClient({
-    keyFilename: process.env.GOOGLE_APPLICATION_CREDENTIALS
-});
+const speechClient = new SpeechClient({ credentials });
+const ttsClient = new TextToSpeechClient({ credentials });
 
 // STT Conversion
 async function generateSTT(audioData: ProcessedAudio): Promise<string> {
@@ -79,11 +76,23 @@ export async function POST(req: Request){
   try {
     console.log(req);
     const formData = await req.formData();
+    console.log(formData);
+    
     const audioBlob = formData.get('audio') as Blob | null;
+    console.log('blob: ', audioBlob);
+    
     const processedAudio = await processAudio(audioBlob);
+    console.log('processedOutput: ', processedAudio);
+
     const transcript = await generateSTT(processedAudio)
+    console.log('transcript: ', transcript);
+
     const geminiResponse = await fetchGeminiResponse(transcript);
+    console.log('gemini response: ', geminiResponse);
+
     const ttsAudio = await generateTTS(geminiResponse);
+    console.log('tts audio: ', ttsAudio);
+    
 
     return NextResponse.json({
       text: geminiResponse,
@@ -93,7 +102,7 @@ export async function POST(req: Request){
   } 
   catch (error) {
     return NextResponse.json(
-      { error: error},
+      { err: error},
       { status: 500 }
     );
   }
