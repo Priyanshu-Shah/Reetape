@@ -84,6 +84,9 @@ export async function POST(req: Request){
     const processedAudio = await processAudio(audioBlob);
     console.log('processedOutput: ', processedAudio);
 
+    const gemini = await fetchGeminiResponse('hello');
+    console.log(gemini);
+
     const transcript = await generateSTT(processedAudio)
     console.log('transcript: ', transcript);
 

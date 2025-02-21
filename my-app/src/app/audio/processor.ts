@@ -76,7 +76,6 @@ function runFFmpeg(inputPath: string, outputPath: string): Promise<void> {
     }
   }
   
-
 // Helper function to read file as Buffer
 async function readFile(path: string): Promise<Buffer> {
     return promisify(fs.readFile)(path);
