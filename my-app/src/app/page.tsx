@@ -1,10 +1,48 @@
 'use client';
 import { useState } from 'react';
 import MicButton from '@/app/components/MicButton';
+//import startRecording from '@/app/components/MicButton';
 
 export default function HomePage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // const handleAudioData = async (blob: Blob) => {
+  //   setIsProcessing(true);
+  //   setError(null);
+  //   try {
+  //     const formData = new FormData();
+  //     formData.append('audio', blob, 'recording.wav');
+
+  //     console.log('form created: ', blob);
+      
+  //     const response = await fetch('/api/chat', {
+  //       method: 'POST',
+  //       body: formData
+  //     });
+
+  //     console.log(response);
+  
+  //     if (!response.ok) {
+  //       throw new Error('Failed to fetch response from server');
+  //     }
+  
+  //     const { audio } = await response.json();
+
+  //     if (audio) {
+  //       new Audio(audio).play();
+  //       startRecording();
+  //     } else {
+  //       throw new Error('No audio URL received');
+  //     }
+
+  //   } catch (error) {
+  //     console.error('Error in handleAudioData:', error);
+  //     setError('An error occurred. Please try again.');
+  //   } finally {
+  //     setIsProcessing(false);
+  //   }
+  // };
 
   const handleAudioData = async (blob: Blob) => {
     setIsProcessing(true);
@@ -12,14 +50,14 @@ export default function HomePage() {
     try {
       const formData = new FormData();
       formData.append('audio', blob, 'recording.wav');
-
+  
       console.log('form created: ', blob);
       
       const response = await fetch('/api/chat', {
         method: 'POST',
         body: formData
       });
-
+  
       console.log(response);
   
       if (!response.ok) {
@@ -27,13 +65,18 @@ export default function HomePage() {
       }
   
       const { audio } = await response.json();
-
+  
       if (audio) {
-        new Audio(audio).play();
+        const audioPlayer = new Audio(audio);
+        audioPlayer.onended = () => {
+          console.log('Audio playback finished. Starting recording...');
+        };
+  
+        audioPlayer.play();
       } else {
         throw new Error('No audio URL received');
       }
-
+  
     } catch (error) {
       console.error('Error in handleAudioData:', error);
       setError('An error occurred. Please try again.');
@@ -41,6 +84,7 @@ export default function HomePage() {
       setIsProcessing(false);
     }
   };
+  
 
   return (
     <main className="flex items-center justify-center h-screen bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-700 text-white p-10">

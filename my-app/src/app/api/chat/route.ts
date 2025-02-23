@@ -3,7 +3,7 @@ import { processAudio, ProcessedAudio} from '@/app/audio/processor';
 import { fetchGeminiResponse } from '@/app/api/chat/gemini';
 import { SpeechClient } from '@google-cloud/speech';
 import { TextToSpeechClient } from '@google-cloud/text-to-speech';
-// import { Storage } from '@google-cloud/storage';
+//import { Storage } from '@google-cloud/storage';
 import { v4 as uuidv4 } from 'uuid';
 import { mkdir, writeFile } from 'fs/promises';
 import path from 'path';
@@ -84,9 +84,6 @@ export async function POST(req: Request){
     const processedAudio = await processAudio(audioBlob);
     console.log('processedOutput: ', processedAudio);
 
-    const gemini = await fetchGeminiResponse('hello');
-    console.log(gemini);
-
     const transcript = await generateSTT(processedAudio)
     console.log('transcript: ', transcript);
 
@@ -99,8 +96,7 @@ export async function POST(req: Request){
 
     return NextResponse.json({
       text: geminiResponse,
-      //audio: `/audio/${ttsAudio.filename}`
-      audio : ttsAudio
+      audio: `/audio/${ttsAudio.filename}`
     });
   } 
   catch (error) {

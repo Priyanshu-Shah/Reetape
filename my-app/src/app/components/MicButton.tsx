@@ -1,12 +1,13 @@
 // app/components/MicButton.tsx
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState} from 'react';
 
 interface MicButtonProps {
   onRecordingComplete: (blob: Blob) => void;
 }
 
 export default function MicButton({ onRecordingComplete }: MicButtonProps) {
+  let Recording = false;
   const [isRecording, setIsRecording] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -15,10 +16,12 @@ export default function MicButton({ onRecordingComplete }: MicButtonProps) {
   const silenceDetectionTimeout = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
+    console.log('Initializing AudioContext and AnalyserNode...');
     audioContextRef.current = new AudioContext();
     analyserRef.current = audioContextRef.current.createAnalyser();
-    analyserRef.current.fftSize = 2048;
-  }, []);
+    analyserRef.current.fftSize = 2048; // Set FFT size for frequency analysis
+    console.log('AudioContext and AnalyserNode initialized:', analyserRef.current);
+  }, []);  
 
   const startRecording = async () => {
     try {
@@ -35,6 +38,7 @@ export default function MicButton({ onRecordingComplete }: MicButtonProps) {
       };
 
       mediaRecorder.start(500);
+      Recording = true;
       setIsRecording(true);
       startSilenceDetection();
     } catch (err) {
@@ -47,45 +51,49 @@ export default function MicButton({ onRecordingComplete }: MicButtonProps) {
     if (mediaRecorderRef.current) {
       mediaRecorderRef.current.stop();
       mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+      Recording = false;
       setIsRecording(false);
   
       if (silenceDetectionTimeout.current) {
         clearTimeout(silenceDetectionTimeout.current);
         silenceDetectionTimeout.current = null;
       }
-  
       const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
       onRecordingComplete(audioBlob);
     }
   };
 
   const startSilenceDetection = () => {
+    console.log('entered silence detection');
+    
     const checkAudioLevel = () => {
-      if (!analyserRef.current || !isRecording) return;
-
+      if (!analyserRef.current || !Recording) {
+        console.log('Analyser node not initialized or recording stopped', analyserRef.current, Recording);
+        return;
+      }
+  
       const buffer = new Uint8Array(analyserRef.current.fftSize);
       analyserRef.current.getByteTimeDomainData(buffer);
-      
+  
       const sum = buffer.reduce((acc, val) => acc + Math.abs(val - 128), 0);
       const avg = sum / buffer.length;
-
-      if (avg < 5) {
+  
+      if (avg < 20) {
         if (!silenceDetectionTimeout.current) {
           silenceDetectionTimeout.current = setTimeout(() => {
             stopRecording();
-          }, 1500);
+          }, 2500);
         }
       } else {
         clearTimeout(silenceDetectionTimeout.current!);
         silenceDetectionTimeout.current = null;
       }
-
       requestAnimationFrame(checkAudioLevel);
     };
-    
+  
     checkAudioLevel();
   };
-
+  
   return (
     <div className="mic-container">
       <button 
