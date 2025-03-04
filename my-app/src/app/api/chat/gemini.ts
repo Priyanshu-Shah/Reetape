@@ -1,4 +1,4 @@
-export async function fetchLlamaResponse(transcript: string): Promise<string> {
+export async function fetchGeminiResponse(transcript: string): Promise<string> {
     try {
         console.log(transcript);
         const prompt = `Respond to the following query in a helpful, professional manner: ${transcript}`;
