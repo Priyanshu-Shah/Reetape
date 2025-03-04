@@ -78,11 +78,11 @@ export default function MicButton({ onRecordingComplete }: MicButtonProps) {
       const sum = buffer.reduce((acc, val) => acc + Math.abs(val - 128), 0);
       const avg = sum / buffer.length;
   
-      if (avg < 20) {
+      if (avg < 25) {
         if (!silenceDetectionTimeout.current) {
           silenceDetectionTimeout.current = setTimeout(() => {
             stopRecording();
-          }, 2500);
+          }, 3000);
         }
       } else {
         clearTimeout(silenceDetectionTimeout.current!);

@@ -74,24 +74,44 @@ async function generateTTS(text: string): Promise<{ filename: string }> {
 
 export async function POST(req: Request){
   try {
+    console.time('start');
+
     console.log(req);
+    console.time('formdata');
     const formData = await req.formData();
     console.log(formData);
+    console.timeEnd('formdata');
     
+    console.time('audio');
     const audioBlob = formData.get('audio') as Blob | null;
     console.log('blob: ', audioBlob);
+    console.timeEnd('audio');
+
     
+    console.time('process');
     const processedAudio = await processAudio(audioBlob);
     console.log('processedOutput: ', processedAudio);
+    console.timeEnd('process');
 
+
+    console.time('transcript');
     const transcript = await generateSTT(processedAudio)
     console.log('transcript: ', transcript);
+    console.timeEnd('transcript');
 
+
+    console.time('response');
     const geminiResponse = await fetchGeminiResponse(transcript);
     console.log('gemini response: ', geminiResponse);
+    console.timeEnd('response');
 
+
+    console.time('TTS');
     const ttsAudio = await generateTTS(geminiResponse);
     console.log('tts audio: ', ttsAudio);
+    console.timeEnd('TTS');
+
+    console.timeEnd('start')
     
 
     return NextResponse.json({

@@ -52,11 +52,14 @@ export default function HomePage() {
       formData.append('audio', blob, 'recording.wav');
   
       console.log('form created: ', blob);
-      
+
+      console.time('frontend');
       const response = await fetch('/api/chat', {
         method: 'POST',
         body: formData
       });
+
+      console.timeEnd('frontend');
   
       console.log(response);
   
