@@ -7,7 +7,7 @@ export async function fetchGeminiResponse(transcript: string): Promise<string> {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                model: "llama3:3b",
+                model: "llama3.2:1b",
                 prompt: prompt,
                 stream: false, // Disable streaming for compatibility
             }),
