@@ -82,17 +82,16 @@ export async function POST(req: Request) {
 
     const formDataStart = Date.now();
     const formData = await req.formData();
-    console.log(formData);
     console.log(`FormData processing time: ${Date.now() - formDataStart}ms`);
 
     const audioStart = Date.now();
     const audioBlob = formData.get("audio") as Blob | null;
-    console.log("blob: ", audioBlob);
+    console.log("blob");
     console.log(`Audio extraction time: ${Date.now() - audioStart}ms`);
 
     const processStart = Date.now();
     const processedAudio = await processAudio(audioBlob);
-    console.log("processedOutput: ", processedAudio);
+    console.log("processed Output");
     console.log(`Audio processing time: ${Date.now() - processStart}ms`);
 
     const transcriptStart = Date.now();
@@ -102,7 +101,7 @@ export async function POST(req: Request) {
 
     const responseStart = Date.now();
     const geminiResponse = await fetchGeminiResponse(transcript);
-    console.log("llama response: ", geminiResponse);
+    console.log("llama response recieved");
     console.log(`llama response time: ${Date.now() - responseStart}ms`);
 
     const ttsStart = Date.now();
