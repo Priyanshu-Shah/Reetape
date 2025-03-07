@@ -8,7 +8,7 @@ import { mkdir } from "fs/promises";
 import path from "path";
 import fs from "fs";
 
-// Configure Google Cloud clients
+// Initialize the Speech client with proper typing
 const credentials = JSON.parse(
   process.env.NEXT_PUBLIC_GOOGLE_APPLICATION_CREDENTIALS_JSON!
 );
@@ -89,44 +89,43 @@ async function generateTTS(text: string) {
 export async function POST(req: Request) {
   try {
     const startTime = Date.now();
-    console.log(req);
-
-    const formDataStart = Date.now();
+    console.log("Request received");
+    
+    // Check if client wants streaming
+    const wantsStreaming = req.headers.get('x-use-streaming') === 'true';
+    
     const formData = await req.formData();
-    console.log(`FormData processing time: ${Date.now() - formDataStart}ms`);
-
-    const audioStart = Date.now();
     const audioBlob = formData.get("audio") as Blob | null;
-    console.log("blob");
-    console.log(`Audio extraction time: ${Date.now() - audioStart}ms`);
-
-    const processStart = Date.now();
+    
     const processedAudio = await processAudio(audioBlob);
-    console.log("processed Output");
-    console.log(`Audio processing time: ${Date.now() - processStart}ms`);
-
-    const transcriptStart = Date.now();
     const transcript = await generateSTT(processedAudio);
-    console.log("transcript: ", transcript);
-    console.log(`STT generation time: ${Date.now() - transcriptStart}ms`);
-
-    const responseStart = Date.now();
+    console.log("Transcript:", transcript);
+    
     const geminiResponse = await fetchGeminiResponse(transcript);
-    console.log("llama response recieved");
-    console.log(`llama response time: ${Date.now() - responseStart}ms`);
+    console.log("AI response received");
 
-    const ttsStart = Date.now();
-    const ttsAudio = await generateTTS(geminiResponse);
-    console.log("tts audio: ", ttsAudio);
-    console.log(`TTS generation time: ${Date.now() - ttsStart}ms`);
-
-    console.log(`Total time: ${Date.now() - startTime}ms`);
-
-    return NextResponse.json({
-      text: geminiResponse,
-      audio: `/audio/${ttsAudio.filename}`,
-    });
+    if (wantsStreaming) {
+      // For streaming, return just the text and information needed for streaming
+      return NextResponse.json({
+        text: geminiResponse,
+        streamingEnabled: true,
+        streamText: geminiResponse
+      });
+    } else {
+      // Traditional response path - existing code
+      const ttsAudio = await generateTTS(geminiResponse);
+      
+      return NextResponse.json({
+        text: geminiResponse,
+        audio: `/audio/${ttsAudio.filename}`,
+      });
+    }
   } catch (error) {
-    return NextResponse.json({ err: error }, { status: 500 });
+    // Existing error handling code
+    console.error("Error in API route:", error);
+    return NextResponse.json({ 
+      error: "Error processing request",
+      message: error instanceof Error ? error.message : "Unknown error"
+    }, { status: 500 });
   }
 }
