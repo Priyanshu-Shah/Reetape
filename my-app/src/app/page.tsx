@@ -159,64 +159,90 @@ export default function Home() {
     }
   };
 
-  const processAudioInput = async () => {
-    try {
-      setIsProcessing(true);
-      
-      // PlayHT works well with webm format
-      const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-      console.log('Audio blob created:', audioBlob.size, 'bytes');
-      
-      const formData = new FormData();
-      formData.append('audio', audioBlob);
-      
-      console.log('Sending request to server...');
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        body: formData,
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.text();
-        throw new Error(`Server error: ${response.status} - ${errorData}`);
-      }
-      
-      const data = await response.json();
-      handleResponseData(data);
-    } catch (err) {
-      console.error('Error processing audio:', err);
-      setError('Failed to process your voice. Please try again.');
-      setIsProcessing(false);
+  // Add this function to your component
+const processAudioInput = async () => {
+  try {
+    setIsProcessing(true);
+    
+    // Create audio blob from recorded chunks
+    const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+    console.log('Audio blob created:', audioBlob.size, 'bytes');
+    
+    const formData = new FormData();
+    formData.append('audio', audioBlob);
+    
+    // Decide if we want to use streaming
+    const useStreaming = true; // You can make this a user setting
+    
+    console.log('Sending request to server...');
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: useStreaming ? { 'x-use-streaming': 'true' } : {},
+      body: formData,
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.text();
+      throw new Error(`Server error: ${response.status} - ${errorData}`);
     }
-  };
-
-  const handleResponseData = (data: { text: string; audio: string }) => {
-    try {
-      if (data.audio) {
-        console.log('Audio response received:', data.audio);
-        setResponse(data.text);
+    
+    const data = await response.json();
+    setResponse(data.text);
+    
+    // Handle audio playback
+    if (data.streamingEnabled && data.streamText) {
+      // Streaming mode
+      try {
+        const audioResponse = await fetch('/api/tts-stream', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            text: data.streamText 
+          }),
+        });
         
-        if (audioPlayerRef.current) {
-          // Create a timestamped URL to avoid browser caching
-          const timestampedUrl = `${data.audio}?timestamp=${new Date().getTime()}`;
-          audioPlayerRef.current.src = timestampedUrl;
-          
-          // PlayHT returns mp3 files, ensure audio element can play them
-          audioPlayerRef.current.play().catch(error => {
-            console.warn('Autoplay prevented:', error);
-            showToast("Audio ready. Click to play.", "info");
-          });
+        if (!audioResponse.ok) {
+          throw new Error(`Audio streaming error: ${audioResponse.status}`);
         }
-      } else {
-        throw new Error('No audio URL received');
+        
+        // Convert the streaming response to a blob
+        const audioBlob = await audioResponse.blob();
+        
+        // Create a URL for the blob
+        const audioUrl = URL.createObjectURL(audioBlob);
+        
+        // Create and play audio
+        if (audioPlayerRef.current) {
+          audioPlayerRef.current.src = audioUrl;
+          audioPlayerRef.current.play().catch(err => {
+            console.warn('Autoplay prevented:', err);
+          });
+          setIsAudioPlaying(true);
+        }
+      } catch (streamError) {
+        console.error("Streaming error:", streamError);
+        showToast("Error playing audio stream", "error");
       }
-    } catch (error) {
-      console.error('Error in handleResponseData:', error);
-      setError('Error processing response. Please try again.');
-    } finally {
-      setIsProcessing(false);
+    } else if (data.audio) {
+      // Traditional mode
+      if (audioPlayerRef.current) {
+        audioPlayerRef.current.src = data.audio;
+        audioPlayerRef.current.play().catch(err => {
+          console.warn('Autoplay prevented:', err);
+        });
+        setIsAudioPlaying(true);
+      }
     }
-  };
+    
+  } catch (err) {
+    console.error('Error processing audio:', err);
+    setError('Failed to process your voice. Please try again.');
+  } finally {
+    setIsProcessing(false);
+  }
+};
 
   const playAudioAgain = () => {
     if (audioPlayerRef.current && audioPlayerRef.current.src) {
