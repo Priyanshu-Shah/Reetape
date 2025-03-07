@@ -15,17 +15,17 @@ const credentials = JSON.parse(
 );
 
 const speechClient = new SpeechClient({ credentials });
-
-// TTS Generation using ElevenLabs with streaming support
+// TTS Generation using ElevenLabs
 async function generateTTS(text: string): Promise<{ filename: string }> {
   try {
+    const ttsStartTime = Date.now();
+    console.log(`Starting TTS for text (${text.length} chars)...`);
+    
     // Create unique filename and directory structure
     const filename = `tts-${uuidv4()}.mp3`;
     const dir = path.join(process.cwd(), "public/audio");
     await mkdir(dir, { recursive: true }); // Ensure directory exists
     const filePath = path.join(dir, filename);
-    
-    console.log("Generating speech with ElevenLabs for text:", text.substring(0, 50) + "...");
     
     // ElevenLabs API requires an API key
     const apiKey = process.env.ELEVENLABS_API_KEY;
@@ -36,7 +36,8 @@ async function generateTTS(text: string): Promise<{ filename: string }> {
     // Default to "Rachel" voice - one of ElevenLabs' default voices
     const voiceId = "21m00Tcm4TlvDq8ikWAM"; // Rachel voice
     
-    // Call ElevenLabs streaming API
+    // Call ElevenLabs API
+    const apiCallStart = Date.now();
     const response = await fetch(
       `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream`,
       {
@@ -52,10 +53,12 @@ async function generateTTS(text: string): Promise<{ filename: string }> {
           voice_settings: {
             stability: 0.5,
             similarity_boost: 0.5,
+            use_speaker_boost: true,
           },
         }),
       }
     );
+    console.log(`ElevenLabs API initial response received in ${Date.now() - apiCallStart}ms`);
 
     if (!response.ok) {
       let errorText = await response.text();
@@ -64,28 +67,35 @@ async function generateTTS(text: string): Promise<{ filename: string }> {
     }
 
     // Handle streaming response
-    // Handle streaming response
     if (!response.body) {
       throw new Error("No response body received from ElevenLabs");
     }
 
     // Create a write stream to save the audio to a file
     const writeStream = createWriteStream(filePath);
+    
+    // Start processing and measuring stream
+    const streamStart = Date.now();
+    console.log("Processing audio stream...");
 
-    // CHANGE THIS PART - Remove the double promise pattern
-    // Pipe the response stream directly to the file
-    await new Promise<void>((resolve, reject) => {
+    // Read the stream from ElevenLabs and write it to the file
+    const streamPromise = new Promise<void>((resolve, reject) => {
       response.body?.pipe(writeStream);
+      
       writeStream.on("finish", () => {
-        console.log(`Audio file saved to ${filePath}`);
+        const streamTime = Date.now() - streamStart;
+        console.log(`Audio stream processed and saved in ${streamTime}ms`);
+        console.log(`Total TTS operation completed in ${Date.now() - ttsStartTime}ms`);
         resolve();
       });
+      
       writeStream.on("error", (err) => {
         console.error("Error writing audio file:", err);
         reject(err);
       });
     });
-    
+
+    await streamPromise;
     return { filename };
     
   } catch (error: any) {
@@ -95,10 +105,13 @@ async function generateTTS(text: string): Promise<{ filename: string }> {
 }
 
 
-
-// STT Conversion
+// STT Conversion with detailed timing
 async function generateSTT(audioData: ProcessedAudio): Promise<string> {
   try {
+    const sttStartTime = Date.now();
+    console.log(`Starting STT for audio (${audioData.buffer.length} bytes, ${audioData.sampleRate} Hz)...`);
+    
+    const apiCallStart = Date.now();
     const [response] = await speechClient.recognize({
       audio: {
         content: audioData.buffer.toString("base64"),
@@ -111,50 +124,98 @@ async function generateSTT(audioData: ProcessedAudio): Promise<string> {
         model: "latest_long",
       },
     });
+    console.log(`Google Cloud STT API call completed in ${Date.now() - apiCallStart}ms`);
 
-    return (
-      response.results
-        ?.map((result) => result.alternatives?.[0]?.transcript)
-        .join(" ") || ""
-    );
+    const transcript = response.results
+      ?.map((result) => result.alternatives?.[0]?.transcript)
+      .join(" ") || "";
+      
+    console.log(`Total STT operation completed in ${Date.now() - sttStartTime}ms`);
+    console.log(`Transcript word count: ${transcript.split(' ').length}`);
+    
+    return transcript;
   } catch (error) {
     console.error("STT Error:", error);
     throw new Error("Speech recognition failed");
   }
 }
 
+
 export async function POST(req: Request) {
   try {
-    const startTime = Date.now();
-    console.log("Request received");
+    const totalStartTime = Date.now();
+    console.log("== API Request Started ==");
     
     // Check if client wants streaming
     const wantsStreaming = req.headers.get('x-use-streaming') === 'true';
+    console.log(`Streaming mode: ${wantsStreaming ? "enabled" : "disabled"}`);
     
+    // Timing: Form data parsing
+    const formDataStart = Date.now();
     const formData = await req.formData();
+    const formDataTime = Date.now() - formDataStart;
+    console.log(`✓ Form data parsed in ${formDataTime}ms`);
+    
+    // Timing: Audio processing
+    const audioProcessingStart = Date.now();
     const audioBlob = formData.get("audio") as Blob | null;
-    
     const processedAudio = await processAudio(audioBlob);
-    const transcript = await generateSTT(processedAudio);
-    console.log("Transcript:", transcript);
+    const audioProcessingTime = Date.now() - audioProcessingStart;
+    console.log(`✓ Audio processed in ${audioProcessingTime}ms`);
     
+    // Timing: Speech-to-Text
+    const sttStart = Date.now();
+    const transcript = await generateSTT(processedAudio);
+    const sttTime = Date.now() - sttStart;
+    console.log(`✓ Speech-to-Text completed in ${sttTime}ms`);
+    console.log(`Transcript: "${transcript.substring(0, 100)}${transcript.length > 100 ? '...' : ''}"`);
+    
+    // Timing: AI Model Response
+    const modelStart = Date.now();
     const geminiResponse = await fetchGeminiResponse(transcript);
-    console.log("AI response received");
+    const modelTime = Date.now() - modelStart;
+    console.log(`✓ AI response generated in ${modelTime}ms`);
+    console.log(`Response: "${geminiResponse.substring(0, 100)}${geminiResponse.length > 100 ? '...' : ''}"`);
 
     if (wantsStreaming) {
       // For streaming, return just the text and information needed for streaming
+      console.log("Returning streaming information to client");
       return NextResponse.json({
         text: geminiResponse,
         streamingEnabled: true,
-        streamText: geminiResponse
+        streamText: geminiResponse,
+        timing: {
+          audio_processing: audioProcessingTime,
+          stt: sttTime,
+          ai_response: modelTime,
+          total: Date.now() - totalStartTime
+        }
       });
     } else {
       // Traditional response path - existing code
+      const ttsStart = Date.now();
       const ttsAudio = await generateTTS(geminiResponse);
+      const ttsTime = Date.now() - ttsStart;
+      console.log(`✓ Text-to-Speech completed in ${ttsTime}ms`);
+      
+      const totalTime = Date.now() - totalStartTime;
+      console.log(`== Total API processing time: ${totalTime}ms ==`);
+      console.log("Performance breakdown:");
+      console.log(`- Audio Processing: ${audioProcessingTime}ms (${(audioProcessingTime/totalTime*100).toFixed(1)}%)`);
+      console.log(`- Speech-to-Text: ${sttTime}ms (${(sttTime/totalTime*100).toFixed(1)}%)`);
+      console.log(`- AI Response: ${modelTime}ms (${(modelTime/totalTime*100).toFixed(1)}%)`);
+      console.log(`- Text-to-Speech: ${ttsTime}ms (${(ttsTime/totalTime*100).toFixed(1)}%)`);
       
       return NextResponse.json({
         text: geminiResponse,
         audio: `/audio/${ttsAudio.filename}`,
+        timing: {
+          audio_processing: audioProcessingTime,
+          stt: sttTime,
+          ai_response: modelTime,
+          tts: ttsTime,
+          total: totalTime
+        }
       });
     }
   } catch (error) {

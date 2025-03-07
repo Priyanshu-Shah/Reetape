@@ -1,7 +1,7 @@
 export async function fetchGeminiResponse(transcript: string): Promise<string> {
     try {
         console.log(transcript);
-        const prompt = `Respond to the following query in a helpful, professional manner and in short: ${transcript}`;
+        const prompt = `Respond to the following query in a helpful, professional manner and in very short answer: ${transcript}`;
         const response = await fetch("http://localhost:11434/api/generate", {
             method: "POST",
             headers: {
