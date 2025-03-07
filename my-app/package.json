@@ -13,6 +13,7 @@
     "@google-cloud/speech": "^6.7.0",
     "@google-cloud/text-to-speech": "^5.8.0",
     "@google/generative-ai": "^0.21.0",
+    "@picovoice/orca-node": "^1.1.0",
     "fluent-ffmpeg": "^2.1.3",
     "framer-motion": "^12.4.4",
     "next": "15.1.7",

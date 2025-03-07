@@ -2,11 +2,11 @@ import { NextResponse } from "next/server";
 import { processAudio, ProcessedAudio } from "@/app/audio/processor";
 import { fetchGeminiResponse } from "@/app/api/chat/gemini";
 import { SpeechClient } from "@google-cloud/speech";
-import { TextToSpeechClient } from "@google-cloud/text-to-speech";
 //import { Storage } from '@google-cloud/storage';
 import { v4 as uuidv4 } from "uuid";
-import { mkdir, writeFile } from "fs/promises";
+import { mkdir } from "fs/promises";
 import path from "path";
+import fs from "fs";
 
 // Configure Google Cloud clients
 const credentials = JSON.parse(
@@ -14,7 +14,6 @@ const credentials = JSON.parse(
 );
 
 const speechClient = new SpeechClient({ credentials });
-const ttsClient = new TextToSpeechClient({ credentials });
 
 // STT Conversion
 async function generateSTT(audioData: ProcessedAudio): Promise<string> {
@@ -43,31 +42,43 @@ async function generateSTT(audioData: ProcessedAudio): Promise<string> {
   }
 }
 
-// TTS Generation
-async function generateTTS(text: string): Promise<{ filename: string }> {
+async function generateTTS(text: string) {
   try {
-    const [response] = await ttsClient.synthesizeSpeech({
-      input: { text },
-      voice: {
-        languageCode: "en-US",
-        name: "en-US-Studio-O",
-        ssmlGender: "FEMALE",
-      },
-      audioConfig: {
-        audioEncoding: "MP3",
-        speakingRate: 1.0,
-        pitch: 0,
-      },
-    });
-
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { Orca } = require("@picovoice/orca-node");
+    const accessKey = "+PNFFTmIMG0/vhJjkhBD+v6xUSKQ71ljhRLNOo3+8CeHJxLae4t08w==";
+    const orca = new  Orca(accessKey);
+    
+    // Create a streaming instance
+    const stream = orca.streamOpen();
+    
+    // Generate a unique filename
     const filename = `tts-${uuidv4()}.mp3`;
-
     const dir = path.join(process.cwd(), "public/audio");
-    await mkdir(dir, { recursive: true }); // Ensure the directory exists
-
+    await mkdir(dir, { recursive: true });
     const filePath = path.join(dir, filename);
-    await writeFile(filePath, response.audioContent as Buffer, "binary");
-
+    
+    // Create a write stream
+    const fileStream = fs.createWriteStream(filePath);
+    
+    // Process text in chunks for streaming
+    // You can split the text or process it as it comes from the LLM
+    const chunks = text.match(/.{1,100}(?:\s|$)/g) || [text];
+    
+    for (const chunk of chunks) {
+      const audioChunk = stream.synthesize(chunk);
+      fileStream.write(audioChunk);
+    }
+    
+    // Flush any remaining audio
+    const finalChunk = stream.flush();
+    if (finalChunk) {
+      fileStream.write(finalChunk);
+    }
+    
+    fileStream.end();
+    stream.close();
+    
     return { filename };
   } catch (error) {
     console.error("TTS Error:", error);
